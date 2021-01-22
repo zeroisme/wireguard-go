@@ -99,7 +99,7 @@ func (peer *Peer) SendKeepalive() bool {
 	elem.packet = nil
 	select {
 	case peer.queue.nonce <- elem:
-		peer.device.log.Debug.Println(peer, "- Sending keepalive packet")
+		peer.device.Debug(peer, "- Sending keepalive packet")
 		return true
 	default:
 		peer.device.PutMessageBuffer(elem.buffer)
@@ -128,11 +128,11 @@ func (peer *Peer) SendHandshakeInitiation(isRetry bool) error {
 	peer.handshake.lastSentHandshake = time.Now()
 	peer.handshake.mutex.Unlock()
 
-	peer.device.log.Debug.Println(peer, "- Sending handshake initiation")
+	peer.device.Debug(peer, "- Sending handshake initiation")
 
 	msg, err := peer.device.CreateMessageInitiation(peer)
 	if err != nil {
-		peer.device.log.Error.Println(peer, "- Failed to create initiation message:", err)
+		peer.device.Error(peer, "- Failed to create initiation message:", err)
 		return err
 	}
 
@@ -147,7 +147,7 @@ func (peer *Peer) SendHandshakeInitiation(isRetry bool) error {
 
 	err = peer.SendBuffer(packet)
 	if err != nil {
-		peer.device.log.Error.Println(peer, "- Failed to send handshake initiation:", err)
+		peer.device.Error(peer, "- Failed to send handshake initiation:", err)
 	}
 	peer.timersHandshakeInitiated()
 
@@ -159,11 +159,11 @@ func (peer *Peer) SendHandshakeResponse() error {
 	peer.handshake.lastSentHandshake = time.Now()
 	peer.handshake.mutex.Unlock()
 
-	peer.device.log.Debug.Println(peer, "- Sending handshake response")
+	peer.device.Debug(peer, "- Sending handshake response")
 
 	response, err := peer.device.CreateMessageResponse(peer)
 	if err != nil {
-		peer.device.log.Error.Println(peer, "- Failed to create response message:", err)
+		peer.device.Error(peer, "- Failed to create response message:", err)
 		return err
 	}
 
@@ -175,7 +175,7 @@ func (peer *Peer) SendHandshakeResponse() error {
 
 	err = peer.BeginSymmetricSession()
 	if err != nil {
-		peer.device.log.Error.Println(peer, "- Failed to derive keypair:", err)
+		peer.device.Error(peer, "- Failed to derive keypair:", err)
 		return err
 	}
 
@@ -185,19 +185,19 @@ func (peer *Peer) SendHandshakeResponse() error {
 
 	err = peer.SendBuffer(packet)
 	if err != nil {
-		peer.device.log.Error.Println(peer, "- Failed to send handshake response:", err)
+		peer.device.Error(peer, "- Failed to send handshake response:", err)
 	}
 	return err
 }
 
 func (device *Device) SendHandshakeCookie(initiatingElem *QueueHandshakeElement) error {
 
-	device.log.Debug.Println("Sending cookie response for denied handshake message for", initiatingElem.endpoint.DstToString())
+	device.Debug("Sending cookie response for denied handshake message for", initiatingElem.endpoint.DstToString())
 
 	sender := binary.LittleEndian.Uint32(initiatingElem.packet[4:8])
 	reply, err := device.cookieChecker.CreateReply(initiatingElem.packet, sender, initiatingElem.endpoint.DstToBytes())
 	if err != nil {
-		device.log.Error.Println("Failed to create cookie reply:", err)
+		device.Error("Failed to create cookie reply:", err)
 		return err
 	}
 
@@ -225,16 +225,12 @@ func (peer *Peer) keepKeyFreshSending() {
  * Obs. Single instance per TUN device
  */
 func (device *Device) RoutineReadFromTUN() {
-
-	logDebug := device.log.Debug
-	logError := device.log.Error
-
 	defer func() {
-		logDebug.Println("Routine: TUN reader - stopped")
+		device.Debug("Routine: TUN reader - stopped")
 		device.state.stopping.Done()
 	}()
 
-	logDebug.Println("Routine: TUN reader - started")
+	device.Debug("Routine: TUN reader - started")
 
 	var elem *QueueOutboundElement
 
@@ -252,7 +248,7 @@ func (device *Device) RoutineReadFromTUN() {
 
 		if err != nil {
 			if !device.isClosed.Get() {
-				logError.Println("Failed to read packet from TUN device:", err)
+				device.Error("Failed to read packet from TUN device:", err)
 				device.Close()
 			}
 			device.PutMessageBuffer(elem.buffer)
@@ -285,7 +281,7 @@ func (device *Device) RoutineReadFromTUN() {
 			peer = device.allowedips.LookupIPv6(dst)
 
 		default:
-			logDebug.Println("Received packet with unknown IP version")
+			device.Debug("Received packet with unknown IP version")
 		}
 
 		if peer == nil {
@@ -321,9 +317,7 @@ func (peer *Peer) FlushNonceQueue() {
  */
 func (peer *Peer) RoutineNonce() {
 	var keypair *Keypair
-
 	device := peer.device
-	logDebug := device.log.Debug
 
 	flush := func() {
 		for {
@@ -339,14 +333,14 @@ func (peer *Peer) RoutineNonce() {
 
 	defer func() {
 		flush()
-		logDebug.Println(peer, "- Routine: nonce worker - stopped")
+		device.Debug(peer, "- Routine: nonce worker - stopped")
 		peer.queue.packetInNonceQueueIsAwaitingKey.Set(false)
 		device.queue.encryption.wg.Done() // no more writes from us
 		close(peer.queue.outbound)        // no more writes to this channel
 		peer.routines.stopping.Done()
 	}()
 
-	logDebug.Println(peer, "- Routine: nonce worker - started")
+	device.Debug(peer, "- Routine: nonce worker - started")
 
 NextPacket:
 	for {
@@ -391,11 +385,11 @@ NextPacket:
 
 				// wait for key to be established
 
-				logDebug.Println(peer, "- Awaiting keypair")
+				device.Debug(peer, "- Awaiting keypair")
 
 				select {
 				case <-peer.signals.newKeypairArrived:
-					logDebug.Println(peer, "- Obtained awaited keypair")
+					device.Debug(peer, "- Obtained awaited keypair")
 
 				case <-peer.signals.flushNonceQueue:
 					device.PutMessageBuffer(elem.buffer)
@@ -459,10 +453,8 @@ func (device *Device) RoutineEncryption() {
 
 	var nonce [chacha20poly1305.NonceSize]byte
 
-	logDebug := device.log.Debug
-
-	defer logDebug.Println("Routine: encryption worker - stopped")
-	logDebug.Println("Routine: encryption worker - started")
+	defer device.Debug("Routine: encryption worker - stopped")
+	device.Debug("Routine: encryption worker - started")
 
 	for elem := range device.queue.encryption.c {
 		// populate header fields
@@ -505,11 +497,8 @@ func (peer *Peer) RoutineSequentialSender() {
 
 	device := peer.device
 
-	logDebug := device.log.Debug
-	logError := device.log.Error
-
-	defer logDebug.Println(peer, "- Routine: sequential sender - stopped")
-	logDebug.Println(peer, "- Routine: sequential sender - started")
+	defer device.Debug(peer, "- Routine: sequential sender - stopped")
+	device.Debug(peer, "- Routine: sequential sender - started")
 
 	for elem := range peer.queue.outbound {
 		elem.Lock()
@@ -537,7 +526,7 @@ func (peer *Peer) RoutineSequentialSender() {
 		device.PutMessageBuffer(elem.buffer)
 		device.PutOutboundElement(elem)
 		if err != nil {
-			logError.Println(peer, "- Failed to send data packet", err)
+			device.Error(peer, "- Failed to send data packet", err)
 			continue
 		}
 

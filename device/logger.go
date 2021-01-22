@@ -6,11 +6,45 @@
 package device
 
 import (
-	"io"
-	"io/ioutil"
 	"log"
 	"os"
 )
+
+func (device *Device) Debugf(msg string, args ...interface{}) {
+	if device.log.Debug != nil {
+		device.log.Debug.Printf(msg, args...)
+	}
+}
+
+func (device *Device) Debug(args ...interface{}) {
+	if device.log.Debug != nil {
+		device.log.Debug.Println(args...)
+	}
+}
+
+func (device *Device) Infof(msg string, args ...interface{}) {
+	if device.log.Info != nil {
+		device.log.Info.Printf(msg, args...)
+	}
+}
+
+func (device *Device) Info(args ...interface{}) {
+	if device.log.Info != nil {
+		device.log.Info.Println(args...)
+	}
+}
+
+func (device *Device) Errorf(msg string, args ...interface{}) {
+	if device.log.Error != nil {
+		device.log.Error.Printf(msg, args...)
+	}
+}
+
+func (device *Device) Error(args ...interface{}) {
+	if device.log.Error != nil {
+		device.log.Error.Println(args...)
+	}
+}
 
 const (
 	LogLevelSilent = iota
@@ -26,34 +60,24 @@ type Logger struct {
 }
 
 func NewLogger(level int, prepend string) *Logger {
-	output := os.Stdout
 	logger := new(Logger)
-
-	logErr, logInfo, logDebug := func() (io.Writer, io.Writer, io.Writer) {
-		if level >= LogLevelDebug {
-			return output, output, output
-		}
-		if level >= LogLevelInfo {
-			return output, output, ioutil.Discard
-		}
-		if level >= LogLevelError {
-			return output, ioutil.Discard, ioutil.Discard
-		}
-		return ioutil.Discard, ioutil.Discard, ioutil.Discard
-	}()
-
-	logger.Debug = log.New(logDebug,
-		"DEBUG: "+prepend,
-		log.Ldate|log.Ltime,
-	)
-
-	logger.Info = log.New(logInfo,
-		"INFO: "+prepend,
-		log.Ldate|log.Ltime,
-	)
-	logger.Error = log.New(logErr,
-		"ERROR: "+prepend,
-		log.Ldate|log.Ltime,
-	)
+	if level >= LogLevelDebug {
+		logger.Debug = log.New(os.Stdout,
+			"DEBUG: "+prepend,
+			log.Ldate|log.Ltime,
+		)
+	}
+	if level >= LogLevelInfo {
+		logger.Info = log.New(os.Stdout,
+			"INFO: "+prepend,
+			log.Ldate|log.Ltime,
+		)
+	}
+	if level >= LogLevelError {
+		logger.Error = log.New(os.Stdout,
+			"ERROR: "+prepend,
+			log.Ldate|log.Ltime,
+		)
+	}
 	return logger
 }
