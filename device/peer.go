@@ -190,7 +190,7 @@ func (peer *Peer) Start() {
 	}
 
 	device := peer.device
-	device.log.Verbosef("%v - Starting...", peer)
+	device.verbosef("%v - Starting...", peer)
 
 	// reset routine state
 
@@ -278,7 +278,7 @@ func (peer *Peer) Stop() {
 	peer.routines.Lock()
 	defer peer.routines.Unlock()
 
-	peer.device.log.Verbosef("%v - Stopping...", peer)
+	peer.device.verbosef("%v - Stopping...", peer)
 
 	peer.timersStop()
 

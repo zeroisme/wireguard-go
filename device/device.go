@@ -177,7 +177,7 @@ func deviceUpdateState(device *Device) {
 	switch newIsUp {
 	case true:
 		if err := device.BindUpdate(); err != nil {
-			device.log.Errorf("Unable to update bind: %v", err)
+			device.errorf("Unable to update bind: %v", err)
 			device.isUp.Set(false)
 			break
 		}
@@ -303,7 +303,7 @@ func NewDevice(tunDevice tun.Device, logger *Logger) *Device {
 	device.tun.device = tunDevice
 	mtu, err := device.tun.device.MTU()
 	if err != nil {
-		device.log.Errorf("Trouble determining MTU, assuming default: %v", err)
+		device.errorf("Trouble determining MTU, assuming default: %v", err)
 		mtu = DefaultMTU
 	}
 	device.tun.mtu = int32(mtu)
@@ -397,7 +397,7 @@ func (device *Device) Close() {
 		return
 	}
 
-	device.log.Verbosef("Device closing")
+	device.verbosef("Device closing")
 	device.state.changing.Set(true)
 	device.state.Lock()
 	defer device.state.Unlock()
@@ -422,7 +422,7 @@ func (device *Device) Close() {
 	device.rate.limiter.Close()
 
 	device.state.changing.Set(false)
-	device.log.Verbosef("Interface closed")
+	device.verbosef("Interface closed")
 }
 
 func (device *Device) Wait() chan struct{} {
@@ -562,7 +562,7 @@ func (device *Device) BindUpdate() error {
 		go device.RoutineReceiveIncoming(ipv4.Version, netc.bind)
 		go device.RoutineReceiveIncoming(ipv6.Version, netc.bind)
 
-		device.log.Verbosef("UDP bind has been updated")
+		device.verbosef("UDP bind has been updated")
 	}
 
 	return nil

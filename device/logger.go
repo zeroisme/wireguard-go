@@ -8,6 +8,7 @@ package device
 import (
 	"log"
 	"os"
+	"unsafe"
 )
 
 // A Logger provides logging for a Device.
@@ -45,4 +46,27 @@ func NewLogger(level int, prepend string) *Logger {
 		logger.Errorf = logf("ERROR")
 	}
 	return logger
+}
+
+var discardLogfFptr uintptr
+
+func init() {
+	iface := (interface{})(DiscardLogf)
+	discardLogfFptr = (*struct{ t, d uintptr })(unsafe.Pointer(&iface)).d
+}
+
+func isDiscardf(fn interface{}) bool {
+	return (*struct{ t, d uintptr })(unsafe.Pointer(&fn)).d == discardLogfFptr
+}
+
+func (device *Device) verbosef(format string, args ...interface{}) {
+	if !isDiscardf(device.log.Verbosef) {
+		device.log.Verbosef(format, args...)
+	}
+}
+
+func (device *Device) errorf(format string, args ...interface{}) {
+	if !isDiscardf(device.log.Errorf) {
+		device.log.Errorf(format, args...)
+	}
 }
